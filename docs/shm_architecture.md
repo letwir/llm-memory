@@ -1,0 +1,37 @@
+# Architecture & Memory Compaction - llm-memory
+
+Multi-client Tailscale 接続と多段記憶縮約（Progressive Compaction: L0 → L1 → L2 → L3）のアーキテクチャ図ですわ。
+
+```mermaid
+flowchart TD
+    subgraph Clients["マルチクライアント環境"]
+        W1["Windows PC 1 (Note)"]
+        W2["Windows PC 2 (Desktop)"]
+        W3["Windows PC 3"]
+        W4["Windows PC 4"]
+        Deb["Debian Server"]
+    end
+
+    subgraph Network["Tailscale Mesh VPN"]
+        TS["PostgreSQL endpoint: host:5432"]
+    end
+
+    subgraph Engine["llm-mem CLI Engine"]
+        Ingest["ingest: 自己編集 ＋ 多段縮約 ＋ グラフ抽出"]
+        Extractor["LLM 抽出器 (Gemini 2.5 Flash) ∨ ヒューリスティック"]
+        Compactor["L0 (100%) → L1 (30%) → L2 (5%) → L3 (1%)"]
+    end
+
+    subgraph PostgreSQL["PostgreSQL 18 (llm_memory)"]
+        MemTable[("memories: Bi-Temporal & L0~L3")]
+        GraphTable[("knowledge_nodes & edges: Temporal Triples")]
+        TrgmIndex["GIN (title, content_l0 gin_trgm_ops)"]
+    end
+
+    W1 & W2 & W3 & W4 & Deb --> Engine
+    Engine --> TS
+    TS --> PostgreSQL
+    Ingest --> Extractor
+    Extractor --> Compactor
+    Compactor --> MemTable & GraphTable
+```

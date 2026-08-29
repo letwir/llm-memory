@@ -1,0 +1,6 @@
+*.exe
+*.out
+.env
+evaluation.json
+build.ps1
+.go-build-cache/
