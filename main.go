@@ -23,6 +23,55 @@ func splitCommaList(value string) []string {
 	return result
 }
 
+func handleSemanticSearchHeavy(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("semantic", flag.ExitOnError)
+	query := fs.String("q", "", "Semantic query")
+	limit := fs.Int("limit", 10, "Limit")
+	if err := fs.Parse(args); err != nil || strings.TrimSpace(*query) == "" {
+		fmt.Println("エラー: -q は必須指定でしてよ")
+		os.Exit(1)
+	}
+	pool, err := GetDBPoolHeavy(ctx)
+	if err != nil {
+		fmt.Printf("DB接続失敗: %v\n", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+	results, err := SearchSemanticMemoriesHeavy(ctx, pool, *query, *limit)
+	if err != nil {
+		fmt.Printf("意味検索失敗: %v\n", err)
+		os.Exit(1)
+	}
+	for _, rec := range results {
+		fmt.Printf("%s\t%s\t%s\n", rec.ID, rec.Category, rec.Title)
+	}
+}
+
+func handleEmbedHeavy(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("embed", flag.ExitOnError)
+	id := fs.String("id", "", "Memory UUID")
+	if err := fs.Parse(args); err != nil || strings.TrimSpace(*id) == "" {
+		fmt.Println("エラー: -id は必須指定でしてよ")
+		os.Exit(1)
+	}
+	pool, err := GetDBPoolHeavy(ctx)
+	if err != nil {
+		fmt.Printf("DB接続失敗: %v\n", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+	var title, content string
+	if err := pool.QueryRow(ctx, "SELECT title, content_l0 FROM v_active_memories WHERE id = $1", *id).Scan(&title, &content); err != nil {
+		fmt.Printf("memory取得失敗: %v\n", err)
+		os.Exit(1)
+	}
+	if err := UpsertMemoryEmbeddingHeavy(ctx, pool, *id, title, content); err != nil {
+		fmt.Printf("embedding保存失敗: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("embeddingを保存しました: %s\n", *id)
+}
+
 // GlobalCLITimeout はCLIコマンド全体の最大実行制限時間ですわ
 const GlobalCLITimeout = 45 * time.Second
 
@@ -37,6 +86,8 @@ Usage:
   llm-mem evals [options]         : 評価履歴の参照
   llm-mem stock [options]         : ストック記憶の簡易一覧表示
   llm-mem search [options]        : 記憶の横断検索 (キーワード/タグ/カテゴリ)
+  llm-mem semantic [options]      : Gemini embeddingによる意味検索 (要: pgvector migration)
+  llm-mem embed [options]         : 記憶1件をembeddingして保存
   llm-mem supersede [options]     : 古い記憶の無効化と後続新記憶の登録 (JITMIND流)
   llm-mem analyze [options]       : diary.md 因果帰属分析 & 双方向フィードバック生成
   llm-mem graph node [options]    : 知識グラフノードの登録/更新
@@ -136,6 +187,10 @@ func main() {
 		handleStockHeavy(ctx, os.Args[2:])
 	case "search":
 		handleSearchHeavy(ctx, os.Args[2:])
+	case "semantic":
+		handleSemanticSearchHeavy(ctx, os.Args[2:])
+	case "embed":
+		handleEmbedHeavy(ctx, os.Args[2:])
 	case "supersede", "update":
 		handleSupersedeHeavy(ctx, os.Args[2:])
 	case "analyze", "evolve":

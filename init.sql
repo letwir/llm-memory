@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS clients (
 );
 
 CREATE TABLE IF NOT EXISTS memories (
-    id varchar(255) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     client_id varchar(255) NOT NULL REFERENCES clients(client_id),
     category varchar(100) NOT NULL DEFAULT 'knowledge',
     title text NOT NULL,
@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS memories (
     tx_created_at timestamptz NOT NULL DEFAULT NOW(),
     tx_invalidated_at timestamptz,
     status varchar(20) NOT NULL DEFAULT 'ACTIVE',
-    superseded_by varchar(255),
+    superseded_by uuid,
     version integer NOT NULL DEFAULT 1,
     metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
     search_document tsvector NOT NULL DEFAULT ''::tsvector,

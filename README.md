@@ -115,6 +115,10 @@ $bin = ".\llm-mem.exe"
 # タグ検索 & JSON構造化出力
 & $bin search -tag "postgres" -json
 
+# 任意のpgvector migration適用後、1件をembedding化して意味検索
+& $bin embed -id "<memory-uuid>"
+& $bin semantic -q "PostgreSQL移行で注意すべき点" -limit 10
+
 # Memory Object の種別・適用範囲で絞り込み
 & $bin search -type decision -scope project -json
 
@@ -125,6 +129,7 @@ $bin = ".\llm-mem.exe"
 ```
 
 `add`/`ingest`/`supersede` は `metadata.memory_object` に、種別・scope・命題・根拠・理由・却下案・確信度を正規化して保存します。既存の `category` や L0〜L3 は互換維持され、Memory Object の type を省略した場合はカテゴリから補完されます。
+意味検索は必須ではありません。`migrations/008_embeddings.sql` を適用し、`GEMINI_API_KEY` を設定した場合だけ `embed` / `semantic` を利用できます。文書は768次元のGemini `gemini-embedding-001`で作成し、モデル変更時は再embeddingが必要です。
 
 ### 3. 未縮約レコードのバッチ多段要約 (`compact`)
 ```powershell
@@ -165,5 +170,5 @@ $bin = ".\llm-mem.exe"
 詳細は [docs/shm_architecture.md](docs/shm_architecture.md) をご覧ください。
 
 ## ライセンス
-MIT License。
+本プロジェクトはMIT Licenseです。JITMIND（MIT License）およびGraphiti（Apache License 2.0）から設計上の着想を得ていますが、両プロジェクトのソースコードや配布物は本リポジトリに含めていません。将来コードを取り込む場合は、対象ファイルのライセンス表示・NOTICE・Apache-2.0の特許条項を維持します。
 **Warning**: 本ツールの本番環境接続情報（Tailscale IP・DB認証情報）は `.env` や環境変数で管理し、Gitリポジトリへコミットしないでください。
