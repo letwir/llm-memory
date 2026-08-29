@@ -1,6 +1,6 @@
 # Architecture & Memory Compaction - llm-memory
 
-Multi-client Tailscale 接続と多段記憶縮約（L0 → L1 → L2 → L3）のアーキテクチャ図ですわ。検索は現在Trigram/ILIKEで、意味検索は未実装です。
+Multi-client Tailscale 接続と多段記憶縮約（L0 → L1 → L2 → L3）のアーキテクチャ図ですわ。検索はTrigram/ILIKEと全文検索を基本とし、任意でpgvectorによる意味検索を利用できます。
 
 ```mermaid
 flowchart TD
@@ -25,13 +25,23 @@ flowchart TD
     subgraph PostgreSQL["PostgreSQL 18 (llm_memory)"]
         MemTable[("memories: Bi-Temporal & L0~L3")]
         GraphTable[("knowledge_nodes & edges: Temporal Triples")]
-        TrgmIndex["GIN (title, content_l0 gin_trgm_ops)"]
+        TrgmIndex["GIN trigram / tsvector"]
+        VectorIndex["HNSW cosine index (optional pgvector)"]
+        WormGuard["WORM trigger: raw facts immutable"]
     end
 
-    W1 & W2 & W3 & W4 & Deb --> Engine
+    W1 --> Engine
+    W2 --> Engine
+    W3 --> Engine
+    W4 --> Engine
+    Deb --> Engine
     Engine --> TS
     TS --> PostgreSQL
     Ingest --> Extractor
     Extractor --> Compactor
-    Compactor --> MemTable & GraphTable
+    Compactor --> MemTable
+    Compactor --> GraphTable
+    MemTable --> TrgmIndex
+    MemTable --> VectorIndex
+    MemTable --> WormGuard
 ```

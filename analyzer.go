@@ -44,6 +44,7 @@ type AttributionAnalysisResult struct {
 	AveragePromptRatio float64        `json:"average_prompt_ratio"`
 	AverageAgentRatio  float64        `json:"average_agent_ratio"`
 	UserFeedbackTips   []string       `json:"user_feedback_tips"`
+	RecentImprovements []string       `json:"recent_improvements"`
 	AgentRuleDiffs     []string       `json:"agent_rule_diffs"`
 }
 
@@ -230,11 +231,44 @@ func AnalyzeAttributionEntriesHeavy(entries []DiaryEntry) AttributionAnalysisRes
 
 	// 旦那様向けフィードバック (PromptDefect からの教訓)
 	res.UserFeedbackTips = generateUserFeedbackTips(res.PromptDefectFreq)
+	res.RecentImprovements = generateRecentImprovements(entries)
 
 	// AIエージェント向けルール自己進化 Diff (AgentDefect からのルールパッチ)
 	res.AgentRuleDiffs = generateAgentRuleDiffs(res.AgentDefectFreq)
 
 	return res
+}
+
+// generateRecentImprovements は直近の記録から、次回の指示にそのまま転用できる改善文を作成しますわ。
+// 頻度集計の一般論とは分離し、diaryの新しいエントリ順を優先して重複を除去いたしますの。
+func generateRecentImprovements(entries []DiaryEntry) []string {
+	var improvements []string
+	seen := make(map[string]bool)
+
+	for i := len(entries) - 1; i >= 0; i-- {
+		for _, defect := range entries[i].PromptDefects {
+			key := strings.ToLower(defect)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+
+			var action string
+			switch {
+			case strings.Contains(key, "underspec"), strings.Contains(key, "ambiguous"), strings.Contains(key, "missing"):
+				action = "次回は対象範囲・入力形式・出力形式・完了条件を指示に明記する。"
+			case strings.Contains(key, "implicit"), strings.Contains(key, "context"):
+				action = "次回は参照ファイル、既存決定事項、実行環境などの前提コンテキストを指示に添える。"
+			case strings.Contains(key, "contradict"):
+				action = "次回は過去の決定事項との整合性確認と、矛盾時の優先順位を指示に明記する。"
+			default:
+				action = fmt.Sprintf("次回は「%s」を避けるための制約と受入条件を指示冒頭に明記する。", defect)
+			}
+			improvements = append(improvements, action)
+		}
+	}
+
+	return improvements
 }
 
 // generateUserFeedbackTips は PromptDefect の傾向から旦那様への建設的プロンプト改善提案を合成しますわ
@@ -338,6 +372,15 @@ func AnalyzeDiaryFileHeavy(ctx context.Context, filePath string, asJSON bool, su
 	fmt.Println("\n【1. 旦那様へのプロンプト改善フィードバック (PromptDefect 分析)】")
 	for i, tip := range result.UserFeedbackTips {
 		fmt.Printf(" %d. %s\n", i+1, tip)
+	}
+
+	fmt.Println("\n【1.5 直近で改善したほうがよい指示内容】")
+	if len(result.RecentImprovements) == 0 {
+		fmt.Println(" 直近のPromptDefectから追加の改善文は生成されませんでしたわ。")
+	} else {
+		for i, improvement := range result.RecentImprovements {
+			fmt.Printf(" %d. %s\n", i+1, improvement)
+		}
 	}
 
 	fmt.Println("\n【2. AIエージェント自身の反省・自己ルール最適化 (AgentDefect 分析)】")

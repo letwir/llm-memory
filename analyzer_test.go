@@ -63,6 +63,13 @@ Attribution: [ワイの指示(PromptDefect): 20% {Contradiction}] vs [AI認知(A
 	if len(res.UserFeedbackTips) == 0 {
 		t.Errorf("expected user feedback tips, got empty")
 	}
+	if len(res.RecentImprovements) == 0 {
+		t.Errorf("expected recent improvements, got empty")
+	}
+	joinedImprovements := strings.Join(res.RecentImprovements, " ")
+	if !strings.Contains(joinedImprovements, "対象範囲") {
+		t.Errorf("expected actionable recent improvement, got %q", joinedImprovements)
+	}
 	if len(res.AgentRuleDiffs) == 0 {
 		t.Errorf("expected agent rule diffs, got empty")
 	}

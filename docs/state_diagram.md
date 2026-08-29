@@ -12,16 +12,16 @@ stateDiagram-v2
     NOOP --> [*]: スキップ (更新なし)
     
     ConflictCheck --> ADD: 新規トピック
-    ADD --> ACTIVE_V1: memories 登録 (v1, status='ACTIVE', valid_to=9999-12-31)
+    ADD --> ACTIVE_V1: memories 登録 (v1, status='ACTIVE', valid_to=NULL)
     
     ConflictCheck --> UPDATE: 内容の差分・更新を検知
     UPDATE --> Supersede_Tx: トランザクション開始
     Supersede_Tx --> SUPERSEDED: 旧記憶の valid_to=NOW(), tx_invalidated_at=NOW(), status='SUPERSEDED'
     Supersede_Tx --> ACTIVE_V2: 新記憶の version=v(n+1), status='ACTIVE'
-    ACTIVE_V2 --> Supersede_Tx: superseded_by = 新UUID
+    ACTIVE_V2 --> Supersede_Tx: 後続更新時に再利用
     Supersede_Tx --> [*]: コミット完了
     
-    ACTIVE_V1 --> DEPRECATED: 明示的削除・無効化
+    ACTIVE_V1 --> DEPRECATED: 明示的な非推奨化
     SUPERSEDED --> [*]
     ACTIVE_V2 --> [*]
     DEPRECATED --> [*]

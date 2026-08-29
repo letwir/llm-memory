@@ -33,13 +33,23 @@ $env:LLM_MEMORY_BUILD_DB_URL = "<local PostgreSQL URL>"
 
 ## エージェントskillとして登録
 
-Windowsでは `INSTALL.bat` を実行すると、Gemini / Codex / Claude / 汎用 `.agents` / OpenCode向けのskillディレクトリへ `SKILL.md` を登録します。
+Windowsでは `BUILD_AND_INSTALL.bat` を実行すると、GoのビルドとGemini / Codex / Claude / 汎用 `.agents` / OpenCode向けのskillディレクトリへの `SKILL.md`・`llm-mem.exe` 配布を一括で行います。
 
 ```bat
-INSTALL.bat
+BUILD_AND_INSTALL.bat
 ```
 
-`LLM_MEMORY_BIN` と `LLM_MEMORY_HOME` もユーザー環境変数へ設定されるため、実行後は新しいターミナルを開いてください。既存のskillは削除せず、初回更新時に `.previous` として退避します。
+`LLM_MEMORY_BIN` と `LLM_MEMORY_HOME` もユーザー環境変数へ設定されるため、実行後は新しいターミナルを開いてください。DB URLはビルド済みexeへ埋め込まれるため、実値を含むexeを公開・共有しないでください。
+
+### エージェント向け開始・終了プロンプト
+
+各エージェントの追加指示へ、次の1行を貼り付けると、タスク開始時に探索し、終了時に検証付きで報告します。
+
+```text
+[SPR/XML::ρ→max|protocol:hydrate⇒exec] Invoke `llm-memory`: Mor(Task) ⇒ Explore(Scope⊗Constraints⊗Evidence) ⇒ Plan ⇒ Implement ⇒ Verify ⇒ Report(Changes⊗Tests⊗Uncertainty⊗Next); 開始時に対象・制約・関連ファイル・現状を探索し、終了時に変更・検証結果・未確認事項・次アクションを報告せよ。
+```
+
+これは探索・計画・実装・検証・報告の流れを要求する補助プロンプトです。DBへの記録や外部サービスへの変更など、タスク固有の権限・完了条件は別途明記してください。
 
 ## SQL初期化
 

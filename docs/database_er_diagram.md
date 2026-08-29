@@ -4,8 +4,9 @@ PostgreSQL 18 における `llm_memory` データベースの ER 図およびテ
 
 ```mermaid
 erDiagram
-    clients ||--o{ memories : "creates / updates"
+    clients ||--o{ memories : "creates"
     memories ||--o{ knowledge_edges : "evidence for"
+    memories ||--o{ memory_embeddings : "has embeddings"
     knowledge_nodes ||--o{ knowledge_edges : "source / target"
 
     clients {
@@ -18,14 +19,14 @@ erDiagram
     }
 
     memories {
-        varchar id PK "記憶UUID"
+        uuid id PK "記憶UUID"
         varchar client_id FK "作成端末ID"
         varchar category "カテゴリ(diary/decision/issue/knowledge/walkthrough等)"
         varchar title "記憶タイトル"
         text content_l0 "L0生テキスト (100%)"
         text content_l1 "L1要点箇条書き (~30%)"
         text content_l2 "L2 1行要約 (~5%)"
-        text[] tags "L3タグ配列 (~1%)"
+        text tags "L3タグ配列 (~1%)"
         int current_level "現在の縮約レベル (0~3)"
         timestamp valid_from "有効開始時刻 (Valid Time)"
         timestamp valid_to "有効終了時刻 (Valid Time)"
@@ -33,10 +34,20 @@ erDiagram
         timestamp tx_invalidated_at "DB無効化時刻 (Tx Time)"
         varchar status "ステータス (ACTIVE / SUPERSEDED / DEPRECATED)"
         int version "バージョン (v1, v2...)"
-        varchar superseded_by "後続新記憶UUID"
+        uuid superseded_by "後続新記憶UUID"
         jsonb metadata "抽出メタデータ + memory_object正規化契約"
+        tsvector search_document "全文検索文書"
         timestamp created_at "作成日時"
         timestamp updated_at "更新日時"
+    }
+
+    memory_embeddings {
+        uuid memory_id FK "対象記憶"
+        varchar model PK "埋め込みモデル"
+        int dimensions "768"
+        vector embedding "pgvector"
+        char source_sha256 "本文ハッシュ"
+        timestamp created_at "作成日時"
     }
 
     knowledge_nodes {

@@ -5,16 +5,20 @@
 1. PostgreSQLに空の `llm_memory` データベースを用意する。
 2. `init.sql` を実行する。
 3. `LLM_MEMORY_DB_URL` を設定する、または `build.example.ps1` で接続先を埋め込む。
-4. 必要なら `INSTALL.bat` を実行して各エージェントへskillを登録する。
+4. 必要なら `BUILD_AND_INSTALL.bat` を実行して各エージェントへskillとバイナリを登録する。
 5. `llm-mem status` で接続を確認する。
 
 ```bat
-INSTALL.bat
-INSTALL.bat codex
-INSTALL.bat opencode
+BUILD_AND_INSTALL.bat
 ```
 
 登録先は `.gemini\skills`、`.codex\skills`、`.claude\skills`、`.agents\skills`、`.config\opencode\skills`、`.opencode\skills` です。既存の `SKILL.md` は初回更新時だけ `SKILL.md.previous` として退避します。
+
+Goのビルドと、上記すべてのskillディレクトリへの `SKILL.md`／`llm-mem.exe` 配布を一度に行う場合は、現在の端末で `LLM_MEMORY_BUILD_DB_URL` を設定してから実行します。URLそのものは画面表示・ソース保存されませんが、ビルド済みexeには埋め込まれます。
+
+```powershell
+./BUILD_AND_INSTALL.bat
+```
 
 ```powershell
 $env:LLM_MEMORY_DB_URL = "<local PostgreSQL URL>"
@@ -76,6 +80,15 @@ $env:LLM_MEMORY_DB_URL = "<local PostgreSQL URL>"
 ./llm-mem.exe ingest -file .\knowledge.md -cat knowledge
 ./llm-mem.exe ingest -title "設計方針" -text "本文" -cat decision
 ./llm-mem.exe compact -limit 20
+```
+
+## diaryの因果分析
+
+`analyze` はPromptDefect/AgentDefectの頻度集計に加えて、diaryの新しいエントリを優先した重複排除済みの `直近で改善したほうがよい指示内容` を表示します。JSON出力では `recent_improvements` として取得できます。
+
+```powershell
+./llm-mem.exe analyze -file .\diary.md
+./llm-mem.exe analyze -file .\diary.md -json
 ```
 
 ## 変更・公開時の注意

@@ -41,4 +41,4 @@ research_hook: ∀Finding ⇒ `& $bin ingest -title "<Title>" -text "<Snippet>" 
 
 ## Installed binary
 
-Use `%LLM_MEMORY_BIN%` when it is set. `INSTALL.bat` sets it to the `llm-mem.exe` next to this project. If the executable has not been built yet, build it first with `build.example.ps1` or set `LLM_MEMORY_BIN` to another compatible binary.
+Use `%LLM_MEMORY_BIN%` when it is set. `BUILD_AND_INSTALL.bat` sets the project-local binary and distributes it with this skill. If the executable has not been built yet, build it with `build.example.ps1` or `BUILD_AND_INSTALL.bat`, or set `LLM_MEMORY_BIN` to another compatible binary.
