@@ -1,4 +1,4 @@
-# State Diagram - JITMIND Self-Editing Memory Lifecycle
+# State Diagram - Self-Editing Memory Lifecycle (JITMIND-inspired)
 
 二重時間軸（Valid Time / Transaction Time）における記憶の自己編集ライフサイクル状態遷移図ですわ。
 

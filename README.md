@@ -9,7 +9,7 @@
 
 ## ナニコレ？
 Windows 4台やDebianからTailscale経由で同時に読み書き・自己編集できる、PostgreSQL 18バックエンドのエージェント記憶基盤CLIです。  
-JITMINDの自己編集ライフサイクル（ADD/UPDATE/NOOP）とGraphitiの多段縮約（L0〜L3）・ナレッジグラフ抽出を統合し、愚痴・因果分析から設計方針までを自動で構造化蓄積します。
+JITMIND / Graphitiに着想を得た自己編集ライフサイクル（ADD/UPDATE/NOOP）、L0〜L3の要約、ナレッジグラフ抽出を統合し、愚痴・因果分析から設計方針までを構造化蓄積します。意味検索やGraphiti互換の推論を実装するものではありません。
 
 ## 必要なもの
 - **PostgreSQL 18+**: `llm_memory` データベースおよび `llm` ユーザー（リモートDebianサーバー等）
@@ -160,10 +160,10 @@ $bin = ".\llm-mem.exe"
 端末管理 (`clients`)、二重時間軸記憶 (`memories`)、および知識グラフ (`knowledge_nodes`, `knowledge_edges`) のリレーショナル構造です。  
 詳細は [docs/database_er_diagram.md](docs/database_er_diagram.md) をご覧ください。
 
-## SHM/WORM
-多端末からの同時参照に耐えうるTrigramインデックス全文検索と、追記型・二重時間軸による改ざん不能な不変履歴（WORM構造）を両立しています。  
+## SHM / 追記型ライフサイクル
+多端末からの同時参照に耐えうるTrigramインデックス検索と、旧記憶をSUPERSEDEDとして残す二重時間軸の追記型ライフサイクルを採用しています。DB管理者による直接UPDATE/DELETEまで防ぐWORMではありません。
 詳細は [docs/shm_architecture.md](docs/shm_architecture.md) をご覧ください。
 
 ## ライセンス
-MIT License / Proprietary to LTW Ecosystem.  
+MIT License。
 **Warning**: 本ツールの本番環境接続情報（Tailscale IP・DB認証情報）は `.env` や環境変数で管理し、Gitリポジトリへコミットしないでください。

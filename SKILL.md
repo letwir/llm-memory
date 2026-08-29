@@ -6,7 +6,7 @@ description: Multi-client Bi-Temporal & multi-level (L0-L3) agent memory and kno
 [SPR/XML::ρ→max|legibility:LLM≫human|protocol:hydrate⇒exec]
 <Γ id="llm_memory_skill">
 env: $env:LLM_MEMORY_DB_URL{PostgreSQL_URL} ∧ opt($env:GEMINI_GROUNDING_API_KEY) ∧ bin($env:LLM_MEMORY_BIN ∨ $env:LLM_MEMORY_HOME/llm-mem.exe);
-axiom: BiTemporal(ValidTime ⊗ TxTime) ∧ Compaction(L0→L1→L2→L3) ∧ SelfEditing{ADD, UPDATE(Supersede), NOOP, DEPRECATE} ∧ Graph(Triples);
+axiom: BiTemporal(ValidTime ⊗ TxTime) ∧ Compaction(L0→L1→L2→L3) ∧ SelfEditing{ADD, UPDATE(Supersede), NOOP, DEPRECATE} ∧ Graph(Triples); # JITMIND/Graphiti-inspired, not compatible implementations
 
 <Γ.morphisms>
 ingest: Mor(Doc{File∨Text} ∘ Cat) ⇒ `& $bin ingest -file <path> -cat <cat>` ∨ `& $bin ingest -title <title> -text <text> -cat <cat>` ⊸ JITMIND_ConflictDetector ∘ Compactor ∘ GraphExtractor ∘ AtomicCommit;

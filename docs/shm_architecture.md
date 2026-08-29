@@ -1,6 +1,6 @@
 # Architecture & Memory Compaction - llm-memory
 
-Multi-client Tailscale 接続と多段記憶縮約（Progressive Compaction: L0 → L1 → L2 → L3）のアーキテクチャ図ですわ。
+Multi-client Tailscale 接続と多段記憶縮約（L0 → L1 → L2 → L3）のアーキテクチャ図ですわ。検索は現在Trigram/ILIKEで、意味検索は未実装です。
 
 ```mermaid
 flowchart TD
@@ -19,7 +19,7 @@ flowchart TD
     subgraph Engine["llm-mem CLI Engine"]
         Ingest["ingest: 自己編集 ＋ 多段縮約 ＋ グラフ抽出"]
         Extractor["LLM 抽出器 (Gemini 2.5 Flash) ∨ ヒューリスティック"]
-        Compactor["L0 (100%) → L1 (30%) → L2 (5%) → L3 (1%)"]
+        Compactor["L0 raw → L1 key points → L2 one-liner → L3 tags"]
     end
 
     subgraph PostgreSQL["PostgreSQL 18 (llm_memory)"]

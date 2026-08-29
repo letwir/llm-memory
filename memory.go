@@ -49,6 +49,11 @@ type AddMemoryInput struct {
 	MemoryObject *MemoryObject
 }
 
+// normalizeIdentity removes case and insignificant whitespace for ingest identity checks.
+func normalizeIdentity(value string) string {
+	return strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(value)), " "))
+}
+
 // InsertMemoryHeavy は新規記憶を二重時間軸テーブルへ登録いたしますわ
 func InsertMemoryHeavy(ctx context.Context, pool *pgxpool.Pool, in AddMemoryInput) (*MemoryRecord, error) {
 	var err error
@@ -149,8 +154,8 @@ func SearchMemoriesFilteredHeavy(ctx context.Context, pool *pgxpool.Pool, keywor
 	}
 
 	if keyword != "" {
-		// TrigramおよびILIKEによる部分一致
-		conditions = append(conditions, fmt.Sprintf("(title ILIKE '%%' || $%d || '%%' OR content_l0 ILIKE '%%' || $%d || '%%')", argIdx, argIdx))
+		// Full-text search handles token matches; ILIKE preserves substring and Japanese fallback behavior.
+		conditions = append(conditions, fmt.Sprintf("(search_document @@ websearch_to_tsquery('simple', $%d) OR title ILIKE '%%' || $%d || '%%' OR content_l0 ILIKE '%%' || $%d || '%%')", argIdx, argIdx, argIdx))
 		args = append(args, keyword)
 		argIdx++
 	}
@@ -207,6 +212,9 @@ func SupersedeMemoryHeavy(ctx context.Context, pool *pgxpool.Pool, oldID string,
 		}
 		return nil, fmt.Errorf("旧記憶のロック取得に失敗いたしましたわ: %w", err)
 	}
+	if oldStatus != "ACTIVE" {
+		return nil, fmt.Errorf("旧記憶の状態がACTIVEではありません (id=%s, status=%s)", oldID, oldStatus)
+	}
 
 	clientID := ResolveLocalClientID()
 	in.Metadata, _, err = normalizeMemoryMetadata(in.Metadata, in.Category, in.Title, in.ContentL0, in.MemoryObject)
@@ -251,6 +259,7 @@ func SupersedeMemoryHeavy(ctx context.Context, pool *pgxpool.Pool, oldID string,
 		UPDATE memories 
 		SET status = 'SUPERSEDED',
 		    valid_to = NOW(),
+		    tx_invalidated_at = NOW(),
 		    superseded_by = $1,
 		    updated_at = NOW()
 		WHERE id = $2;

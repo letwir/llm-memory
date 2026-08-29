@@ -347,6 +347,9 @@ func handleIngestHeavy(ctx context.Context, args []string) {
 				fmt.Printf("    ID: %s (v%d) | L2: %s\n", res.Memory.ID, res.Memory.Version, *res.Memory.ContentL2)
 			}
 			fmt.Printf("    ノード: %d 件, エッジ: %d 件\n", res.CreatedNodeCount, res.CreatedEdgeCount)
+			for _, graphErr := range res.GraphErrors {
+				fmt.Printf("    グラフ登録失敗: %s\n", graphErr)
+			}
 		}
 		return
 	}

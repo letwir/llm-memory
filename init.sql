@@ -29,9 +29,46 @@ CREATE TABLE IF NOT EXISTS memories (
     superseded_by varchar(255),
     version integer NOT NULL DEFAULT 1,
     metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+    search_document tsvector NOT NULL DEFAULT ''::tsvector,
     created_at timestamptz NOT NULL DEFAULT NOW(),
     updated_at timestamptz NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE memories ADD COLUMN IF NOT EXISTS search_document tsvector
+    NOT NULL DEFAULT ''::tsvector;
+
+CREATE OR REPLACE FUNCTION llm_memory_update_search_document()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    NEW.search_document := to_tsvector(
+        'simple'::regconfig,
+        coalesce(NEW.title, '') || ' ' ||
+        coalesce(NEW.content_l0, '') || ' ' ||
+        coalesce(NEW.content_l1, '') || ' ' ||
+        coalesce(NEW.content_l2, '') || ' ' ||
+        coalesce(array_to_string(NEW.tags, ' '), '')
+    );
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS memories_search_document_trigger ON memories;
+CREATE TRIGGER memories_search_document_trigger
+BEFORE INSERT OR UPDATE OF title, content_l0, content_l1, content_l2, tags
+ON memories
+FOR EACH ROW
+EXECUTE FUNCTION llm_memory_update_search_document();
+
+UPDATE memories
+SET search_document = to_tsvector(
+    'simple'::regconfig,
+    coalesce(title, '') || ' ' || coalesce(content_l0, '') || ' ' ||
+    coalesce(content_l1, '') || ' ' || coalesce(content_l2, '') || ' ' ||
+    coalesce(array_to_string(tags, ' '), '')
+)
+WHERE search_document = ''::tsvector;
 
 CREATE TABLE IF NOT EXISTS knowledge_nodes (
     id varchar(255) PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -79,6 +116,11 @@ WHERE e.valid_to IS NULL;
 CREATE INDEX IF NOT EXISTS idx_memories_active_category ON memories(category, updated_at DESC) WHERE status = 'ACTIVE';
 CREATE INDEX IF NOT EXISTS idx_memories_title_trgm ON memories USING gin(title gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_memories_content_l0_trgm ON memories USING gin(content_l0 gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_memories_search_document ON memories USING gin(search_document);
 CREATE INDEX IF NOT EXISTS idx_memories_metadata ON memories USING gin(metadata);
 CREATE INDEX IF NOT EXISTS idx_memories_tags ON memories USING gin(tags);
 CREATE INDEX IF NOT EXISTS idx_edges_active ON knowledge_edges(valid_to);
+-- Active titles are the operational ingest identity; use a source/task-specific title.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_active_identity
+    ON memories(category, lower(regexp_replace(btrim(title), '\s+', ' ', 'g')))
+    WHERE status = 'ACTIVE' AND valid_to IS NULL;

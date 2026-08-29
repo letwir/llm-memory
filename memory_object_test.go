@@ -2,6 +2,15 @@ package main
 
 import "testing"
 
+func TestNormalizeIdentity(t *testing.T) {
+	if got := normalizeIdentity("  PostgreSQL\n 18 "); got != "postgresql 18" {
+		t.Fatalf("normalizeIdentity() = %q", got)
+	}
+	if normalizeIdentity("A  B") != normalizeIdentity("a b") {
+		t.Fatal("case and whitespace variants must share an identity")
+	}
+}
+
 func TestNormalizeMemoryObjectDefaultsFromCategory(t *testing.T) {
 	metadata, object, err := normalizeMemoryMetadata(nil, "decision", "Choose JSONB", "Store full precision in JSONB", nil)
 	if err != nil {

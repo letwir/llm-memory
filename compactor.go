@@ -33,6 +33,7 @@ type IngestResult struct {
 	Extracted        *ExtractedKnowledge `json:"extracted"`
 	CreatedNodeCount int                 `json:"created_node_count"`
 	CreatedEdgeCount int                 `json:"created_edge_count"`
+	GraphErrors      []string            `json:"graph_errors,omitempty"`
 }
 
 // IngestKnowledgeHeavy はJITMIND自己編集判定と多段縮約・グラフ抽出を一括実行いたしますわ
@@ -63,8 +64,8 @@ func IngestKnowledgeHeavy(ctx context.Context, pool *pgxpool.Pool, title string,
 		existing, err := SearchMemoriesHeavy(ctx, pool, extracted.Title, "", extracted.Category, 3)
 		if err == nil && len(existing) > 0 {
 			for _, m := range existing {
-				if strings.EqualFold(strings.TrimSpace(m.Title), strings.TrimSpace(extracted.Title)) {
-					if strings.TrimSpace(m.ContentL0) == strings.TrimSpace(rawContent) {
+				if normalizeIdentity(m.Title) == normalizeIdentity(extracted.Title) {
+					if normalizeIdentity(m.ContentL0) == normalizeIdentity(rawContent) {
 						return &IngestResult{
 							Action:    ActionNoop,
 							Reason:    fmt.Sprintf("同一内容の記憶 (ID: %s) が既に存在するため更新をスキップいたしましたわ", m.ID),
@@ -113,11 +114,14 @@ func IngestKnowledgeHeavy(ctx context.Context, pool *pgxpool.Pool, title string,
 	// 4. 抽出された知識グラフノードとエッジの登録
 	nodeCount := 0
 	edgeCount := 0
+	var graphErrors []string
 
 	for _, n := range extracted.Nodes {
 		_, err := UpsertNodeHeavy(ctx, pool, n.Name, n.NodeType, n.Summary, nil)
 		if err == nil {
 			nodeCount++
+		} else {
+			graphErrors = append(graphErrors, fmt.Sprintf("node %q: %v", n.Name, err))
 		}
 	}
 
@@ -125,6 +129,8 @@ func IngestKnowledgeHeavy(ctx context.Context, pool *pgxpool.Pool, title string,
 		_, err := AddEdgeHeavy(ctx, pool, e.SourceName, e.TargetName, e.RelationType, e.Weight, finalMemory.ID)
 		if err == nil {
 			edgeCount++
+		} else {
+			graphErrors = append(graphErrors, fmt.Sprintf("edge %q -> %q: %v", e.SourceName, e.TargetName, err))
 		}
 	}
 
@@ -136,6 +142,7 @@ func IngestKnowledgeHeavy(ctx context.Context, pool *pgxpool.Pool, title string,
 		Extracted:        extracted,
 		CreatedNodeCount: nodeCount,
 		CreatedEdgeCount: edgeCount,
+		GraphErrors:      graphErrors,
 	}, nil
 }
 
@@ -174,6 +181,7 @@ func IngestFileSectionsHeavy(ctx context.Context, pool *pgxpool.Pool, filePath s
 	}
 
 	var results []*IngestResult
+	var sectionErrors []string
 	for _, sec := range sections {
 		// セクションからタイトルを推定
 		lines := strings.Split(sec, "\n")
@@ -191,11 +199,15 @@ func IngestFileSectionsHeavy(ctx context.Context, pool *pgxpool.Pool, filePath s
 
 		res, err := IngestKnowledgeHeavy(ctx, pool, secTitle, sec, category, forceAdd)
 		if err != nil {
+			sectionErrors = append(sectionErrors, fmt.Sprintf("%s: %v", secTitle, err))
 			continue
 		}
 		results = append(results, res)
 	}
 
+	if len(sectionErrors) > 0 {
+		return results, fmt.Errorf("%d section(s) failed: %s", len(sectionErrors), strings.Join(sectionErrors, "; "))
+	}
 	return results, nil
 }
 
