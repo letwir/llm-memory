@@ -84,7 +84,7 @@ $env:LLM_MEMORY_DB_URL = "<local PostgreSQL URL>"
 
 ## diaryの因果分析
 
-`analyze` はPromptDefect/AgentDefectの頻度集計に加えて、diaryの新しいエントリを優先した重複排除済みの `直近で改善したほうがよい指示内容` を表示します。JSON出力では `recent_improvements` として取得できます。
+`analyze` はPromptDefect/AgentDefectの頻度集計に加えて、diaryの新しいエントリを優先した重複排除済みの改善文を、最初の `旦那様へのプロンプト改善フィードバック` として表示します。過去の頻度傾向は補足として表示され、JSON出力では改善文を `recent_improvements` として取得できます。
 
 ```powershell
 ./llm-mem.exe analyze -file .\diary.md

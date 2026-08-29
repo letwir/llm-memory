@@ -369,18 +369,18 @@ func AnalyzeDiaryFileHeavy(ctx context.Context, filePath string, asJSON bool, su
 	fmt.Printf("AgentDefect  (AI側)   : %d 件 (平均寄与率: %.1f%%)\n", result.TotalAgentDefects, result.AverageAgentRatio)
 	fmt.Println("--------------------------------------------------------------------------------")
 
-	fmt.Println("\n【1. 旦那様へのプロンプト改善フィードバック (PromptDefect 分析)】")
-	for i, tip := range result.UserFeedbackTips {
-		fmt.Printf(" %d. %s\n", i+1, tip)
-	}
-
-	fmt.Println("\n【1.5 直近で改善したほうがよい指示内容】")
+	fmt.Println("\n【1. 旦那様へのプロンプト改善フィードバック (直近の改善内容)】")
 	if len(result.RecentImprovements) == 0 {
-		fmt.Println(" 直近のPromptDefectから追加の改善文は生成されませんでしたわ。")
+		fmt.Println(" 直近のPromptDefectから改善文は生成されませんでしたわ。")
 	} else {
 		for i, improvement := range result.RecentImprovements {
 			fmt.Printf(" %d. %s\n", i+1, improvement)
 		}
+	}
+
+	fmt.Println("\n【1.5 PromptDefectの頻度傾向（補足）】")
+	for i, tip := range result.UserFeedbackTips {
+		fmt.Printf(" %d. %s\n", i+1, tip)
 	}
 
 	fmt.Println("\n【2. AIエージェント自身の反省・自己ルール最適化 (AgentDefect 分析)】")
