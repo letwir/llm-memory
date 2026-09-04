@@ -5,7 +5,7 @@ description: Multi-client Bi-Temporal & multi-level (L0-L3) agent memory and kno
 
 [SPR/XML::ρ→max|legibility:LLM≫human|protocol:hydrate⇒exec]
 <Γ id="llm_memory_skill">
-env: $env:LLM_MEMORY_DB_URL{PostgreSQL_URL} ∧ opt($env:GEMINI_GROUNDING_API_KEY) ∧ bin($env:LLM_MEMORY_BIN ∨ $env:LLM_MEMORY_HOME/llm-mem.exe);
+env: $env:LLM_MEMORY_DB_URL{PostgreSQL_URL} ∧ opt($env:GEMINI_GROUNDING_API_KEY) ∧ bin($env:LLM_MEMORY_BIN);
 axiom: BiTemporal(ValidTime ⊗ TxTime) ∧ Compaction(L0→L1→L2→L3) ∧ SelfEditing{ADD, UPDATE(Supersede), NOOP, DEPRECATE} ∧ Graph(Triples); # JITMIND/Graphiti-inspired, not compatible implementations
 
 <Γ.morphisms>
@@ -21,24 +21,18 @@ graph_mutate: Mor(Src ∘ Rel ∘ Tgt) ⇒ `& $bin graph edge -src <S> -tgt <T> 
 status: Mor(∅) ⇒ `& $bin status` ∧ `& $bin clients`;
 </Γ.morphisms>
 
-task_close: MUST create `./memo/<task_id>/knowledge.md`, `./memo/<task_id>/diary.md`, and `./memo/<task_id>/walkthrough.md` for every task; the walkthrough MUST contain an explicit `実行計画` section. After those three Inserts, create one evaluation JSON and run `& $bin eval -file <evaluation.json>`.
-record_fields: every task record MUST contain `task_id`, timestamp, target environment, evidence/source scope, verification status, and remaining uncertainty. Do not call unverified claims facts, and do not claim completion before acceptance conditions pass.
-required: `task_id`, `comparison_key`, `axes` (each score 0..1), `attribution`;
-attribution: `prompt_defects` records defects in the human instruction, `agent_defects` records LLM misunderstanding or execution failure; `prompt_ratio` and `agent_ratio` are 0..1 and must sum to 1 when supplied. If both are omitted, the CLI derives them from defect counts.
-evidence: include only task-scoped references such as file paths, test names, command results, or inserted memory IDs; never include credentials or raw secret-bearing logs.
-report: after the eval Insert succeeds, relay the CLI's `タスク評価リザルト` to the user, including the conclusion, human-instruction feedback, and LLM-side correction. JSON mode remains machine-readable and contains the same `metadata.feedback`.
-failure: if evaluation creation, validation, Insert, or result retrieval fails, report the failure and do not claim task evaluation completion.
-
-normal_ingest: INSERT into `memories` with `client_id`, `category`, `title`, `content_l0`, nullable `content_l1`, nullable `content_l2`, `tags`, and JSONB `metadata`; normalization also writes `metadata.memory_object` with type/scope/proposition. Graph nodes/edges are then inserted separately. `ingest` may perform ADD/UPDATE/NOOP and LLM/heuristic extraction.
-evaluation_ingest: INSERT into the same `memories` table with `category=eval`, `content_l0` containing the evaluation JSON, `tags` containing `eval` plus role/task tags, and JSONB `metadata` containing `record_type=eval`, `schema_version=eval.v1`, comparison data, axes, relative delta, deterministic flags, attribution, feedback, and the automatically normalized `memory_object`. It bypasses LLM extraction, compaction, and graph insertion.
-task_identity: `task_id` is stored in evaluation metadata and as `task_id:<value>` tag; it is not a separate SQL table or column. The three task Markdown records are the source documents for the corresponding `knowledge`, `diary`, and `walkthrough` Inserts.
-
-<Γ.pipeline_integration>
-walkthrough_hook: ∀Walkthrough ⇒ `& $bin ingest -file "path/to/walkthrough.md" -cat "walkthrough"`;
-research_hook: ∀Finding ⇒ `& $bin ingest -title "<Title>" -text "<Snippet>" -cat "knowledge"`;
-</Γ.pipeline_integration>
+@lrf=1|aud=GPT-5.6|scope=llm-memory-contract
+R|close.artifacts|task:llm-memory|MUST|LW_SCOPE|dir=memo/<task_id>; files=knowledge.md,diary.md,walkthrough.md; walkthrough-section=実行計画
+R|close.record-fields|task:llm-memory|MUST|LW_SCOPE|required=task_id,timestamp,target-environment,evidence-scope,verification-status,remaining-uncertainty; unverified=fact-forbidden; acceptance=completion-precondition
+R|close.evaluation-input|task:llm-memory|MUST|LW_SCOPE|required=task_id,comparison_key,axes[0..1],attribution; ratios=prompt_ratio+agent_ratio=1-or-derived
+R|close.evidence|task:llm-memory|MUST_NOT|CRED|allow=task-scoped-paths,tests,command-results,memory-ids; deny=credentials,raw-secret-logs
+R|close.evaluation|task:llm-memory|MUST|LIVE_WRITE|pre=artifacts; command=eval-file-evaluation.json; approval=current-task
+R|close.report|task:llm-memory|MUST|RO_LOCAL|pre=eval-success; output=conclusion,human-feedback,agent-correction; json=metadata.feedback
+R|close.failure|task:llm-memory|MUST|RO_LOCAL|on=eval-create,validate,insert,retrieve-failure; report=true; completion-claim=false
+R|ingest.normal|task:llm-memory|MUST|LIVE_WRITE|table=memories; columns=client_id,category,title,content_l0,content_l1?,content_l2?,tags,metadata; lifecycle=ADD,UPDATE,NOOP; approval=current-task
+R|ingest.evaluation|task:llm-memory|MUST|LIVE_WRITE|table=memories; category=eval; metadata=record_type,eval.v1,comparison,axes,delta,attribution,feedback,memory_object; bypass=extraction,compaction,graph; approval=current-task
+R|identity.task|task:llm-memory|MUST|RO_LOCAL|storage=metadata.task_id+tag:task_id:<value>; sql-column=false; documents=knowledge,diary,walkthrough
+R|pipeline.walkthrough|task:llm-memory|MUST|LIVE_WRITE|command=ingest-file-walkthrough-cat-walkthrough; approval=current-task
+R|pipeline.research|task:llm-memory|MUST|LIVE_WRITE|command=ingest-title-text-cat-knowledge; approval=current-task
+R|binary.canonical|task:llm-memory|MUST|RO_LOCAL|path=$env:LLM_MEMORY_BIN; fallback=forbidden; build=build.example.ps1-or-BUILD_AND_INSTALL.bat
 </Γ>
-
-## Installed binary
-
-Use `%LLM_MEMORY_BIN%` when it is set. `BUILD_AND_INSTALL.bat` sets the project-local binary and distributes it with this skill. If the executable has not been built yet, build it with `build.example.ps1` or `BUILD_AND_INSTALL.bat`, or set `LLM_MEMORY_BIN` to another compatible binary.

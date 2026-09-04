@@ -6,11 +6,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -115,6 +117,41 @@ func SearchMemoriesHeavy(ctx context.Context, pool *pgxpool.Pool, keyword string
 
 // SearchMemoriesFilteredHeavy adds normalized Memory Object filters while keeping the original API intact.
 func SearchMemoriesFilteredHeavy(ctx context.Context, pool *pgxpool.Pool, keyword string, tag string, category string, objectType string, scope string, limit int) ([]MemoryRecord, error) {
+	query, args := buildSearchMemoriesQuery(keyword, tag, category, objectType, scope, limit, true)
+	rows, err := pool.Query(ctx, query, args...)
+	if err != nil && keyword != "" && isMissingSearchDocumentError(err) {
+		// Older deployed databases predate the optional full-text column. Preserve
+		// keyword search rather than requiring a schema mutation for read-only use.
+		query, args = buildSearchMemoriesQuery(keyword, tag, category, objectType, scope, limit, false)
+		rows, err = pool.Query(ctx, query, args...)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("検索クエリ実行エラーでしてよ: %w", err)
+	}
+	defer rows.Close()
+
+	var records []MemoryRecord
+	for rows.Next() {
+		var rec MemoryRecord
+		var rawMeta []byte
+		err := rows.Scan(
+			&rec.ID, &rec.ClientID, &rec.Category, &rec.Title,
+			&rec.ContentL0, &rec.ContentL1, &rec.ContentL2, &rec.Tags,
+			&rec.CurrentLevel, &rec.ValidFrom, &rec.ValidTo, &rec.Version,
+			&rawMeta, &rec.CreatedAt, &rec.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("レコードのスキャンに失敗いたしましたわ: %w", err)
+		}
+		_ = json.Unmarshal(rawMeta, &rec.Metadata)
+		rec.Status = "ACTIVE"
+		records = append(records, rec)
+	}
+
+	return records, nil
+}
+
+func buildSearchMemoriesQuery(keyword string, tag string, category string, objectType string, scope string, limit int, useSearchDocument bool) (string, []interface{}) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -155,7 +192,11 @@ func SearchMemoriesFilteredHeavy(ctx context.Context, pool *pgxpool.Pool, keywor
 
 	if keyword != "" {
 		// Full-text search handles token matches; ILIKE preserves substring and Japanese fallback behavior.
-		conditions = append(conditions, fmt.Sprintf("(search_document @@ websearch_to_tsquery('simple', $%d) OR title ILIKE '%%' || $%d || '%%' OR content_l0 ILIKE '%%' || $%d || '%%')", argIdx, argIdx, argIdx))
+		if useSearchDocument {
+			conditions = append(conditions, fmt.Sprintf("(search_document @@ websearch_to_tsquery('simple', $%d) OR title ILIKE '%%' || $%d || '%%' OR content_l0 ILIKE '%%' || $%d || '%%')", argIdx, argIdx, argIdx))
+		} else {
+			conditions = append(conditions, fmt.Sprintf("(title ILIKE '%%' || $%d || '%%' OR content_l0 ILIKE '%%' || $%d || '%%')", argIdx, argIdx))
+		}
 		args = append(args, keyword)
 		argIdx++
 	}
@@ -167,31 +208,12 @@ func SearchMemoriesFilteredHeavy(ctx context.Context, pool *pgxpool.Pool, keywor
 	baseQuery += fmt.Sprintf(" ORDER BY updated_at DESC LIMIT $%d", argIdx)
 	args = append(args, limit)
 
-	rows, err := pool.Query(ctx, baseQuery, args...)
-	if err != nil {
-		return nil, fmt.Errorf("検索クエリ実行エラーでしてよ: %w", err)
-	}
-	defer rows.Close()
+	return baseQuery, args
+}
 
-	var records []MemoryRecord
-	for rows.Next() {
-		var rec MemoryRecord
-		var rawMeta []byte
-		err := rows.Scan(
-			&rec.ID, &rec.ClientID, &rec.Category, &rec.Title,
-			&rec.ContentL0, &rec.ContentL1, &rec.ContentL2, &rec.Tags,
-			&rec.CurrentLevel, &rec.ValidFrom, &rec.ValidTo, &rec.Version,
-			&rawMeta, &rec.CreatedAt, &rec.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("レコードのスキャンに失敗いたしましたわ: %w", err)
-		}
-		_ = json.Unmarshal(rawMeta, &rec.Metadata)
-		rec.Status = "ACTIVE"
-		records = append(records, rec)
-	}
-
-	return records, nil
+func isMissingSearchDocumentError(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "42703" && strings.Contains(pgErr.Message, "search_document")
 }
 
 // SupersedeMemoryHeavy は古い記憶を無効化し、後続の新しい記憶をトランザクション内で安全に作成いたしますわ
